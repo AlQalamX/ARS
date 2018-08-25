@@ -2,7 +2,8 @@
 
 import os
 import numpy as np
-
+import gym
+from gym import wrappers
 # setting the hyperparameters (usually a param of a fixed value)
 
 class Hp():
@@ -90,8 +91,63 @@ def explore(env, normalizer, policy, direction = None, delta = None):
         sum_rewards += reward
         numb_plays += 1
     return sum_rewards
-        
 
-        
+#Training th AI
+
+def train(env, policy, normalizer, hp):
+    
+    for step in range(hp.numb_steps):
+
+        #Initializing the perturbations deltas & the pos/neg rewards
+        deltas = policy.sample_deltas()
+        positive_rewards = [0] * hp.numb_directions
+        negative_rewards = [0] * hp.numb_directions
+
+        # Getting positive rewards in the positive directions
+
+        for k in range(hp.numb_directions):
+            positive_rewards[k] = explore(env, normalizer, policy, direction = "positive", delta = deltas[k])
+
+        # Getting negative rewards in the opposite directions
+
+        for k in range(hp.numb_directions):
+            negative_rewards[k] = explore(env, normalizer, policy, direction = "negative", delta = deltas[k])
+
+        # Gather all pos/neg rewards into one list to compute standard deviation of rewards
+        all_rewards = np.array(positive_rewards + negative_rewards)
+        sigma_r = all_rewards.std()
+
+        # sorting the rollouts by the max(r_pos, r_neg) and selecting the best directions
+        scores = {k:max(r_pos, r_neg) for k, (r_pos, r_neg) in enumerate(zip(positive_rewards, negative_rewards))}
+        order = sorted(scores.keys(),key = lambda x:scores[x])[0:hp.numb_best_directions]
+        rollouts = [(positive_rewards[k], negative_rewards[k], deltas[k]) for k in order]
+
+        # Updating the policy... Section 3 Algorithm v2 step 7
+        policy.update(rollouts, sigma_r)
             
+        # Printing the final reward of the policy after the update
+        reward_evaluation = explore(env, normalizer, policy)
+        print('Step: ', step, ' Reward: ', reward_evaluation)
+
+# Running the main code
+
+def mkdir(base, name):
+    path = os.path.join(base, name)
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path
+work_dir = mkdir('exp', 'bra')
+monitor_dir = mkdir(work_dir, 'monitor')
+
+hp = Hp()
+np.random.seed(hp.seed)
+env = gym.make(hp.env_name)
+env = wrappers.Monitor(env,monitor_dir, force = True)
+numb_inputs = env.observation_space.shape[0]
+numb_outputs = env.action_space.shape[0]
+policy = AI(numb_inputs, numb_outputs)
+normalizer = Normalizer(numb_inputs)
+train(env, policy, normalizer, hp)
+
+
  
