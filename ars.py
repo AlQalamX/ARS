@@ -74,6 +74,24 @@ class AI():
             step += (r_pos - r_neg) * delt
         self.theta += hp.learning_rate / (hp.numb_best_directions * sigma_r) * step
 
-    
+# explore the policy on one specific direction and over one episode
+# allows for reward to be compared after a complete episode --optimal decision making/exploit 
+def explore(env, normalizer, policy, direction = None, delta = None):
+    state = env.reset()
+    done = False
+    numb_plays = 0.
+    sum_rewards = 0
+    while not done and numb_plays < hp.episode_length:
+        normalizer.observe(state)
+        state = normalizer.normailize(state)
+        action = policy.evaluate(state, delta, direction)
+        state, reward, done, _ = env.step(action)
+        reward = max(min(reward, 1), -1)
+        sum_rewards += reward
+        numb_plays += 1
+    return sum_rewards
+        
+
+        
             
  
